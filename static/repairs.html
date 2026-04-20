@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>报修管理 - 德汇物业</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<script src="/static/js/common.js"></script>
+</head>
+<body>
+<div id="nav"></div>
+<div class="container">
+  <h2>报修管理</h2>
+
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+    <input id="keyword" placeholder="搜索：工单号/标题/客户/房号" oninput="loadOrders()" style="flex:2">
+    <button onclick="showCreate()" style="max-width:140px">+ 新增报修</button>
+  </div>
+
+  <div id="view-list">
+    <div class="table-wrap">
+      <table><thead><tr>
+        <th>工单号</th><th>标题</th><th>客户</th><th>房源</th><th>类型</th><th>优先级</th><th>状态</th><th>提交时间</th><th>操作</th>
+      </tr></thead><tbody id="tbOrders"></tbody></table>
+    </div>
+  </div>
+
+  <div id="view-form" style="display:none">
+    <h3 id="form-title">新增报修</h3>
+    <form id="frmOrder">
+      <input type="hidden" name="id">
+      <div class="form-grid">
+        <div><label>客户</label><select name="customer_id" id="sel-customer" required></select></div>
+        <div><label>房源</label><select name="unit_id" id="sel-unit"></select></div>
+        <div><label>报修类型</label><select name="repair_type" required>
+          <option value="水电">水电</option><option value="空调">空调</option>
+          <option value="装修">装修</option><option value="公共设施">公共设施</option>
+          <option value="其他">其他</option>
+        </select></div>
+        <div><label>优先级</label><select name="priority">
+          <option value="紧急">紧急</option><option value="高">高</option>
+          <option value="中" selected>中</option><option value="低">低</option>
+        </select></div>
+        <div><label>标题</label><input name="title" required></div>
+      </div>
+      <div style="margin-top:12px"><label>描述</label><textarea name="content" required></textarea></div>
+      <div class="row" style="margin-top:14px">
+        <button type="submit" style="max-width:120px">提交</button>
+        <button type="button" class="secondary" onclick="showList()" style="max-width:120px">取消</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="view-detail" style="display:none">
+    <h3>工单详情 <span id="detail-no" class="muted"></span></h3>
+    <div class="card" style="max-width:800px">
+      <div class="kv" id="detail-kv"></div>
+      <h4 style="margin:14px 0 8px">处理记录</h4>
+      <div id="detail-logs" style="font-size:13px"></div>
+      <h4 style="margin:14px 0 8px">状态更新</h4>
+      <form id="frmStatus">
+        <input type="hidden" name="action" id="status-action">
+        <div class="form-grid">
+          <div><label>新状态</label><select name="status" id="sel-status" required>
+            <option value="已派单">已派单</option><option value="处理中">处理中</option>
+            <option value="待确认">待确认</option><option value="已完成">已完成</option>
+            <option value="已关闭">已关闭</option>
+          </select></div>
+          <div><label>处理人</label><input name="assigned_to" placeholder="输入处理人/班组"></div>
+          <div><label>操作备注</label><input name="action_content" placeholder="简要描述本次操作"></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button type="submit" style="max-width:120px">更新状态</button>
+          <button type="button" class="secondary" onclick="showList()" style="max-width:120px">返回列表</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+let customersOpts = [], unitsOpts = [], currentOrderId = null;
+document.getElementById('nav').outerHTML = navHtml('/repairs');
+
+(async () => {
+  const custs = await api('/api/customers');
+  customersOpts = custs;
+  document.getElementById('sel-customer').innerHTML = '<option value="">-- 选客户 --</option>' + custs.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+  const units = await api('/api/customers/units');
+  unitsOpts = units;
+  document.getElementById('sel-unit').innerHTML = '<option value="">-- 无 --</option>' + units.map(u => `<option value="${u.id}">${u.unit_code} (${u.building_no})</option>`).join('');
+
+  loadOrders();
+})();
+
+async function loadOrders() {
+  const kw = qs('keyword').value;
+  const orders = await api(`/api/repairs/orders?keyword=${encodeURIComponent(kw)}`);
+  document.getElementById('tbOrders').innerHTML = orders.map(o => {
+    const st = { '待受理': 'badge warn', '已派单': 'badge', '处理中': 'badge', '待确认': 'badge', '已完成': 'badge', '已关闭': 'badge' };
+    const pri = { '紧急': 'badge warn', '高': 'badge warn', '中': 'badge', '低': 'badge' };
+    return `<tr>
+      <td><a href="javascript:showDetail(${o.id})">${o.repair_no}</a></td>
+      <td>${o.title}</td><td>${o.customer_name || '-'}</td><td>${o.unit_code || '-'}</td>
+      <td>${o.repair_type}</td>
+      <td><span class="${pri[o.priority] || 'badge'}">${o.priority}</span></td>
+      <td><span class="${st[o.status] || 'badge'}">${o.status}</span></td>
+      <td>${o.reported_at?.substring(0,16) || '-'}</td>
+      <td><button class="secondary" style="width:auto;padding:4px 10px" onclick="showDetail(${o.id})">查看</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="9" style="text-align:center" class="muted">暂无数据</td></tr>';
+}
+
+async function showDetail(id) {
+  currentOrderId = id;
+  const d = await api(`/api/repairs/orders/${id}`);
+  const o = d.order;
+  document.getElementById('detail-no').textContent = o.repair_no;
+  qs('detail-kv').innerHTML = Object.entries({
+    '工单号': o.repair_no, '标题': o.title, '类型': o.repair_type, '优先级': o.priority,
+    '客户': d.customer_name || '-', '房源': o.unit_id ? (d.unit_code || o.unit_id) : '-',
+    '状态': o.status, '来源': o.source, '提交时间': o.reported_at?.substring(0,16),
+    '受理时间': o.accepted_at?.substring(0,16) || '-', '处理人': o.assigned_to || '-',
+    '完成时间': o.completed_at?.substring(0,16) || '-',
+    '客户反馈': o.customer_feedback || '-', '满意度': o.satisfaction_score ? o.satisfaction_score + '星' : '-',
+    '关闭原因': o.close_reason || '-', '备注': o.remark || '-'
+  }).map(([k,v]) => `<strong>${k}</strong><span>${v}</span>`).join('');
+
+  document.getElementById('detail-logs').innerHTML = d.logs.length
+    ? d.logs.map(l => `<div style="margin-bottom:6px;padding:8px;background:#f8fafc;border-radius:8px">
+        <b>${l.action}</b> - <span class="muted">${l.operator_role}</span> - ${l.created_at?.substring(0,16)}<br>${l.action_content || ''}</div>`).join('')
+    : '<div class="muted">暂无处理记录</div>';
+
+  qs('sel-status').value = o.status;
+  ['view-list','view-form','view-detail'].forEach(id => qs(id).style.display = 'none');
+  qs('view-detail').style.display = '';
+}
+
+function showList() {
+  ['view-list','view-form','view-detail'].forEach(id => qs(id).style.display = 'none');
+  qs('view-list').style.display = '';
+  loadOrders();
+}
+
+function showCreate() {
+  qs('frmOrder').reset();
+  qs('frmOrder').id.value = '';
+  document.getElementById('form-title').textContent = '新增报修';
+  ['view-list','view-form','view-detail'].forEach(id => qs(id).style.display = 'none');
+  qs('view-form').style.display = '';
+}
+
+qs('frmOrder').onsubmit = async e => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(qs('frmOrder')).entries());
+  if (!data.unit_id) delete data.unit_id;
+  try {
+    await api('/api/repairs/orders', { method: 'POST', body: JSON.stringify(data) });
+    alertMsg('报修单提交成功');
+    showList();
+  } catch(e) { alertMsg(e.message); }
+};
+
+qs('frmStatus').onsubmit = async e => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(qs('frmStatus')).entries());
+  data.operator_id = 'admin';
+  data.operator_role = '物业';
+  try {
+    await api(`/api/repairs/orders/${currentOrderId}/status`, { method: 'POST', body: JSON.stringify(data) });
+    alertMsg('状态更新成功');
+    showDetail(currentOrderId);
+  } catch(e) { alertMsg(e.message); }
+};
+</script>
+</body>
+</html>
