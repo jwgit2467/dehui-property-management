@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>德汇创新中心物业管理系统</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<script src="/static/js/common.js"></script>
+</head>
+<body>
+<div id="nav"></div>
+<div class="container">
+  <h2>系统概览</h2>
+  <div id="overview" class="grid cards"></div>
+  <h3 class="section-title">快捷操作</h3>
+  <div class="grid cards" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+    <div class="card" style="cursor:pointer" onclick="location.href='/customers'">
+      <h4>👥 客户管理</h4><p class="muted">客户档案、业主/租户、房源绑定</p>
+    </div>
+    <div class="card" style="cursor:pointer" onclick="location.href='/rent'">
+      <h4>💰 租金收缴</h4><p class="muted">账单生成、缴费登记、欠费提醒</p>
+    </div>
+    <div class="card" style="cursor:pointer" onclick="location.href='/parking'">
+      <h4>🚗 停车管理</h4><p class="muted">车位档案、月租绑定、临停登记</p>
+    </div>
+    <div class="card" style="cursor:pointer" onclick="location.href='/repairs'">
+      <h4>🔧 报修管理</h4><p class="muted">报修提交、派单跟踪、完成反馈</p>
+    </div>
+  </div>
+</div>
+<script>
+document.getElementById('nav').outerHTML = navHtml('/');
+(async () => {
+  const data = await api('/api/overview');
+  const cards = [
+    ['👥 客户总数', data.customerCount],
+    ['🏢 房源总数', data.unitCount],
+    ['💳 欠费账单', data.dueBills],
+    ['🚙 已分配车位', data.occupiedSpaces],
+    ['📋 待处理报修', data.openRepairs],
+  ];
+  document.getElementById('overview').innerHTML = cards.map(([t, v]) =>
+    `<div class="card"><h3>${v ?? 0}</h3><p class="muted" style="margin:4px 0 0">${t}</p></div>`
+  ).join('');
+})();
+</script>
+</body>
+</html>
